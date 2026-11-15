@@ -8,7 +8,7 @@ COPY client/ ./
 RUN npm run build
 
 # ---- Build the .NET API ----
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS server
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS server
 WORKDIR /src/server
 COPY server/FuelFinder.Api.csproj ./
 RUN dotnet restore
@@ -17,7 +17,7 @@ COPY --from=client /src/server/wwwroot ./wwwroot
 RUN dotnet publish -c Release -o /app --no-restore
 
 # ---- Runtime ----
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 WORKDIR /app
 COPY --from=server /app ./
 # The aspnet image listens on 8080. Use the numeric UID of its non-root `app`

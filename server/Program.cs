@@ -1,75 +1,79 @@
-using FuelFinder.Api;
+using FuelFinder.Api.Options;
+using FuelFinder.Api.Services;
+using FuelFinder.Api.Stores;
+using Microsoft.Extensions.Options;
 
-var builder = WebApplication.CreateBuilder(args);
+namespace FuelFinder.Api;
 
-var fuelOptions = builder.Configuration.GetSection("FuelFinder").Get<FuelFinderOptions>() ?? new FuelFinderOptions();
-builder.Services.AddSingleton(fuelOptions);
-// Singleton so the access token and the one-request-at-a-time gate are shared.
-// The API's firewall returns 403 for requests without a User-Agent.
-var fuelHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
-fuelHttp.DefaultRequestHeaders.UserAgent.ParseAdd("FuelFinderWeb/1.0");
-builder.Services.AddSingleton(sp => new FuelFinderClient(
-    fuelHttp,
-    fuelOptions,
-    sp.GetRequiredService<ILogger<FuelFinderClient>>()));
-builder.Services.AddSingleton<FuelDataStore>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<FuelDataStore>());
-
-var app = builder.Build();
-
-app.UseDefaultFiles();
-app.UseStaticFiles();
-
-// Kubernetes readiness: only take traffic once the fuel data has loaded.
-app.MapGet("/healthz", (FuelDataStore store) => store.IsLoaded ? Results.Ok("ok") : Results.StatusCode(503));
-
-var api = app.MapGroup("/api");
-
-api.MapGet("/status", (FuelDataStore store) => new
+public static class Program
 {
-    loaded = store.IsLoaded,
-    stations = store.Count,
-    lastUpdated = store.LastUpdated,
-});
+    private const string UserAgent = "FuelFinderWeb/1.0";
 
-api.MapGet("/stations", (FuelDataStore store, double lat, double lng, double? radiusKm, string? fuel, string? sort) =>
-{
-    if (!store.IsLoaded)
-        return Results.Problem("Fuel data is still loading, try again in a moment.", statusCode: 503);
-
-    var radius = Math.Clamp(radiusKm ?? 8, 1, 50);
-    var fuelType = string.IsNullOrWhiteSpace(fuel) ? null : fuel.ToUpperInvariant();
-
-    var results = store.Search(lat, lng, radius, fuelType);
-    results = sort == "distance" || fuelType is null
-        ? results.OrderBy(r => r.DistanceKm)
-        : results.OrderBy(r => r.Station.Prices.First(p => p.FuelType == fuelType).Price).ThenBy(r => r.DistanceKm);
-
-    var list = results.ToList();
-    return Results.Ok(new
+    public static void Main(string[] args)
     {
-        lastUpdated = store.LastUpdated,
-        total = list.Count,
-        results = list.Take(50).Select(r => new
-        {
-            r.Station.Id,
-            r.Station.Name,
-            r.Station.Brand,
-            r.Station.Address,
-            r.Station.Postcode,
-            r.Station.Phone,
-            r.Station.Latitude,
-            r.Station.Longitude,
-            r.Station.IsMotorway,
-            r.Station.IsSupermarket,
-            r.Station.Amenities,
-            r.Station.Prices,
-            distanceKm = Math.Round(r.DistanceKm, 2),
-        }),
-    });
-});
+        var builder = WebApplication.CreateBuilder(args);
 
-// Let the React router handle anything else.
-app.MapFallbackToFile("index.html");
+        ConfigureServices(builder.Services, builder.Configuration);
 
-app.Run();
+        var app = builder.Build();
+
+        ConfigurePipeline(app);
+
+        app.Run();
+    }
+
+    private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        services
+            .AddOptions<FuelFinderOptions>()
+            .Bind(configuration.GetSection(FuelFinderOptions.SectionName))
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.ClientId) && !string.IsNullOrWhiteSpace(options.ClientSecret),
+                "FuelFinder:ClientId and FuelFinder:ClientSecret must be configured.")
+            .ValidateOnStart();
+
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IFuelDataStore, FuelDataStore>();
+        services.AddSingleton<IFuelFinderTokenProvider, FuelFinderTokenProvider>();
+        services.AddSingleton<IFuelFinderApiClient, FuelFinderApiClient>();
+        services.AddSingleton<IStationSearchService, StationSearchService>();
+        services.AddTransient<FuelFinderAuthenticationHandler>();
+        services.AddHostedService<FuelDataRefreshService>();
+
+        services
+            .AddHttpClient(FuelFinderTokenProvider.HttpClientName, ConfigureFuelFinderClient)
+            .AddStandardResilienceHandler();
+
+        services
+            .AddHttpClient(FuelFinderApiClient.HttpClientName, ConfigureFuelFinderClient)
+            .AddHttpMessageHandler<FuelFinderAuthenticationHandler>()
+            .AddStandardResilienceHandler(options =>
+            {
+                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(60);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(2);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+            });
+
+        services.AddControllers();
+        services.AddProblemDetails();
+    }
+
+    private static void ConfigureFuelFinderClient(IServiceProvider serviceProvider, HttpClient client)
+    {
+        var options = serviceProvider.GetRequiredService<IOptions<FuelFinderOptions>>().Value;
+
+        client.BaseAddress = new Uri(options.BaseUrl);
+        client.Timeout = Timeout.InfiniteTimeSpan;
+
+        // The API's firewall rejects requests without a User-Agent with a 403.
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+    }
+
+    private static void ConfigurePipeline(WebApplication app)
+    {
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
+        app.MapControllers();
+        app.MapFallbackToFile("index.html");
+    }
+}

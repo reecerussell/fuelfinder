@@ -3,7 +3,7 @@
 A mobile-first site that shows live UK fuel prices near you, using the GOV.UK
 [Fuel Finder API](https://www.developer.fuel-finder.service.gov.uk/).
 
-- **server/**: ASP.NET Core (.NET 10) minimal API
+- **server/**: ASP.NET Core (.NET 11) Web API with controllers
 - **client/**: React + TypeScript (Vite)
 
 ## How it works
