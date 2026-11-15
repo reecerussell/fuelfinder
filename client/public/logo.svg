@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Fuel Finder">
+  <rect width="64" height="64" fill="#1f5fbf"/>
+  <path d="M32 9C32 9 17 26 17 38a15 15 0 0 0 30 0C47 26 32 9 32 9Z" fill="#ffffff"/>
+  <circle cx="32" cy="38.5" r="5.5" fill="#1f5fbf"/>
+</svg>

@@ -97,6 +97,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <h1>
+          <img src="/logo.svg" alt="" width="36" height="36" />
           Fuel Finder
         </h1>
         <p>Pump prices reported to the UK Fuel Finder scheme</p>
