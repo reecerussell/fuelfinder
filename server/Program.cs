@@ -20,6 +20,9 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// Kubernetes readiness: only take traffic once the fuel data has loaded.
+app.MapGet("/healthz", (FuelDataStore store) => store.IsLoaded ? Results.Ok("ok") : Results.StatusCode(503));
+
 var api = app.MapGroup("/api");
 
 api.MapGet("/status", (FuelDataStore store) => new
