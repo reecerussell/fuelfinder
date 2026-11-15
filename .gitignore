@@ -1,0 +1,13 @@
+# .NET
+server/bin/
+server/obj/
+server/wwwroot/
+*.user
+
+# Node
+client/node_modules/
+client/dist/
+
+# Never commit credentials
+appsettings.*.local.json
+.env
