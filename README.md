@@ -131,7 +131,8 @@ fuelfinder/
         ├── App.tsx            # the page: search, filters, results list, sharing
         ├── CarPanel.tsx       # tank size / current level form
         ├── api.ts             # API calls, fuel types, postcode and geolocation lookups
-        ├── car.ts             # fill-up maths and saving to localStorage
+        ├── car.ts             # fill-up maths and the saved car settings
+        ├── storage.ts         # localStorage read/write that copes with blocked storage
         ├── url.ts             # shareable URL parsing and writing
         └── index.css          # all styles (light theme, square corners, blue on cream)
 ```
@@ -228,7 +229,8 @@ desktop.
 
 Opening a shared link applies its settings **for that visit only**. The recipient's saved fuel and
 radius preferences (`localStorage` keys `fuel`, `radius`) change only when they pick something
-themselves. Invalid parameters are ignored.
+themselves. Invalid parameters are ignored, and invalid or corrupted saved values fall back to the
+defaults.
 
 ### Design
 Light theme only: a warm cream background (`#f5f1e8`), blue as the main colour (`#1f5fbf`), square

@@ -4,5 +4,5 @@ namespace FuelFinder.Api.Services;
 
 public interface IStationSearchService
 {
-    StationSearchResults Search(StationSearchCriteria criteria);
+    StationSearchPage Search(StationSearchCriteria criteria);
 }

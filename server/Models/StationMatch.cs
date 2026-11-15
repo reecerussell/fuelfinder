@@ -1,6 +1,6 @@
 namespace FuelFinder.Api.Models;
 
-public sealed class StationSearchResult
+public sealed class StationMatch
 {
     public required Station Station { get; init; }
 

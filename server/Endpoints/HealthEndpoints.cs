@@ -7,10 +7,7 @@ public static class HealthEndpoints
 {
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints
-            .MapGet("/healthz", GetReadiness)
-            .WithName("GetReadiness")
-            .ExcludeFromDescription();
+        endpoints.MapGet("/healthz", GetReadiness);
 
         return endpoints;
     }

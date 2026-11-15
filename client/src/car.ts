@@ -1,3 +1,5 @@
+import { readStored, writeStored } from './storage'
+
 export interface CarSettings {
   tankLitres: number
   /** How full the tank is before filling, as a fraction (0 = empty). */
@@ -17,23 +19,15 @@ export const MAX_TANK_LITRES = 150
 const STORAGE_KEY = 'car'
 
 export function loadCar(): CarSettings | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const car = JSON.parse(raw) as CarSettings
-    return isValidTank(car.tankLitres) ? car : null
-  } catch {
-    return null
-  }
+  const stored = readStored(STORAGE_KEY) as Partial<CarSettings> | null
+  if (!stored || typeof stored.tankLitres !== 'number' || !isValidTank(stored.tankLitres)) return null
+
+  const level = LEVELS.some((l) => l.value === stored.currentLevel) ? stored.currentLevel! : 0
+  return { tankLitres: stored.tankLitres, currentLevel: level }
 }
 
 export function saveCar(car: CarSettings | null) {
-  try {
-    if (car) localStorage.setItem(STORAGE_KEY, JSON.stringify(car))
-    else localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    /* storage unavailable (private mode etc.) — the setting just won't persist */
-  }
+  writeStored(STORAGE_KEY, car)
 }
 
 export function isValidTank(litres: number) {
@@ -54,5 +48,6 @@ const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' 
 export const formatPounds = (pounds: number) => gbp.format(pounds)
 
 export function levelLabel(level: number) {
-  return level === 0 ? 'empty' : `${LEVELS.find((l) => l.value === level)?.label ?? ''} full`
+  const fraction = LEVELS.find((l) => l.value === level)
+  return level === 0 || !fraction ? 'empty' : `${fraction.label} full`
 }

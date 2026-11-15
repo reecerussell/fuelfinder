@@ -58,9 +58,11 @@ public sealed class FuelDataRefreshService : BackgroundService
 
         _logger.LogInformation("Loading fuel prices");
         var prices = await _apiClient.GetPricesAsync(cancellationToken);
-        var pricesByStation = prices
-            .GroupBy(price => price.NodeId)
-            .ToDictionary(group => group.Key, group => (IReadOnlyList<FuelFinderFuelPriceDto>)(group.First().FuelPrices ?? []));
+        var pricesByStation = new Dictionary<string, IReadOnlyList<FuelFinderFuelPriceDto>>(prices.Count);
+        foreach (var entry in prices)
+        {
+            pricesByStation.TryAdd(entry.NodeId, entry.FuelPrices ?? []);
+        }
 
         var stations = new List<Station>(_stations.Count);
         foreach (var dto in _stations)

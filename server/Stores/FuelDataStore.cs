@@ -5,7 +5,7 @@ namespace FuelFinder.Api.Stores;
 public sealed class FuelDataStore : IFuelDataStore
 {
     private readonly TimeProvider _timeProvider;
-    private Snapshot _snapshot = new([], null);
+    private volatile Snapshot _snapshot = new([], null);
 
     public FuelDataStore(TimeProvider timeProvider)
     {
@@ -20,7 +20,7 @@ public sealed class FuelDataStore : IFuelDataStore
 
     public void Replace(IReadOnlyList<Station> stations)
     {
-        Volatile.Write(ref _snapshot, new Snapshot(stations, _timeProvider.GetUtcNow()));
+        _snapshot = new Snapshot(stations, _timeProvider.GetUtcNow());
     }
 
     private sealed class Snapshot

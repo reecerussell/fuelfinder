@@ -8,9 +8,7 @@ public static class StatusEndpoints
 {
     public static IEndpointRouteBuilder MapStatusEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints
-            .MapGet("/api/status", GetStatus)
-            .WithName("GetStatus");
+        endpoints.MapGet("/api/status", GetStatus);
 
         return endpoints;
     }

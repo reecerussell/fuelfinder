@@ -14,9 +14,8 @@ public sealed class FuelFinderTokenProvider : IFuelFinderTokenProvider
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly FuelFinderOptions _options;
     private readonly TimeProvider _timeProvider;
-    private readonly SemaphoreSlim _lock = new(1, 1);
-    private string? _accessToken;
-    private DateTimeOffset _expiresAt;
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private volatile CachedToken? _token;
 
     public FuelFinderTokenProvider(
         IHttpClientFactory httpClientFactory,
@@ -30,42 +29,36 @@ public sealed class FuelFinderTokenProvider : IFuelFinderTokenProvider
 
     public async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
     {
-        if (TryGetCachedToken(out var cached))
+        var token = _token;
+        if (token is not null && !token.HasExpired(_timeProvider))
         {
-            return cached;
+            return token.Value;
         }
 
-        await _lock.WaitAsync(cancellationToken);
+        await _refreshLock.WaitAsync(cancellationToken);
         try
         {
-            if (TryGetCachedToken(out cached))
+            token = _token;
+            if (token is null || token.HasExpired(_timeProvider))
             {
-                return cached;
+                token = await RequestTokenAsync(cancellationToken);
+                _token = token;
             }
 
-            var token = await RequestTokenAsync(cancellationToken);
-            _accessToken = token.AccessToken;
-            _expiresAt = _timeProvider.GetUtcNow().AddSeconds(token.ExpiresIn) - ExpiryBuffer;
-            return _accessToken;
+            return token.Value;
         }
         finally
         {
-            _lock.Release();
+            _refreshLock.Release();
         }
     }
 
     public void Invalidate()
     {
-        _accessToken = null;
+        _token = null;
     }
 
-    private bool TryGetCachedToken(out string token)
-    {
-        token = _accessToken ?? string.Empty;
-        return _accessToken is not null && _timeProvider.GetUtcNow() < _expiresAt;
-    }
-
-    private async Task<FuelFinderTokenDataDto> RequestTokenAsync(CancellationToken cancellationToken)
+    private async Task<CachedToken> RequestTokenAsync(CancellationToken cancellationToken)
     {
         var client = _httpClientFactory.CreateClient(HttpClientName);
         var request = new FuelFinderTokenRequestDto
@@ -84,7 +77,27 @@ public sealed class FuelFinderTokenProvider : IFuelFinderTokenProvider
         var body = await response.Content.ReadFromJsonAsync(
             AppJsonSerializerContext.Default.FuelFinderTokenResponseDto,
             cancellationToken);
+        var data = body?.Data ?? throw new InvalidOperationException("Fuel Finder returned an empty token response.");
 
-        return body?.Data ?? throw new InvalidOperationException("Fuel Finder returned an empty token response.");
+        var expiresAt = _timeProvider.GetUtcNow().AddSeconds(data.ExpiresIn) - ExpiryBuffer;
+        return new CachedToken(data.AccessToken, expiresAt);
+    }
+
+    private sealed class CachedToken
+    {
+        public CachedToken(string value, DateTimeOffset expiresAt)
+        {
+            Value = value;
+            ExpiresAt = expiresAt;
+        }
+
+        public string Value { get; }
+
+        public DateTimeOffset ExpiresAt { get; }
+
+        public bool HasExpired(TimeProvider timeProvider)
+        {
+            return timeProvider.GetUtcNow() >= ExpiresAt;
+        }
     }
 }

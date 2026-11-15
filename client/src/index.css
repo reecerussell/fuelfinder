@@ -149,8 +149,7 @@ button, input, select { font: inherit; color: inherit; }
   line-height: 1.1;
 }
 .price small { font-size: 0.85rem; margin-left: 1px; }
-.price.best span, .price.best { color: var(--best-text); }
-.price.best { background: var(--best-bg); padding: 2px 4px; }
+.price.best { background: var(--best-bg); color: var(--best-text); padding: 2px 4px; }
 
 .info { display: grid; gap: 3px; min-width: 0; }
 .info strong { font-size: 1rem; overflow-wrap: anywhere; }

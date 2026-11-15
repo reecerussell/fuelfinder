@@ -17,7 +17,6 @@ public static class StationsEndpoints
     {
         endpoints
             .MapGet("/api/stations", Search)
-            .WithName("SearchStations")
             .RequireRateLimiting(RateLimitPolicies.Search);
 
         return endpoints;
@@ -52,13 +51,13 @@ public static class StationsEndpoints
             Sort = sort,
         };
 
-        var results = searchService.Search(criteria);
+        var page = searchService.Search(criteria);
 
         return TypedResults.Ok(new StationSearchResponse
         {
             LastUpdated = store.LastUpdated,
-            Total = results.Total,
-            Results = results.Results.Select(ToResponse).ToList(),
+            Total = page.Total,
+            Results = page.Matches.Select(ToResponse).ToList(),
         });
     }
 
@@ -73,9 +72,9 @@ public static class StationsEndpoints
         return Enum.TryParse(value, ignoreCase: true, out sort) && Enum.IsDefined(sort);
     }
 
-    private static StationResponse ToResponse(StationSearchResult result)
+    private static StationResponse ToResponse(StationMatch match)
     {
-        var station = result.Station;
+        var station = match.Station;
 
         return new StationResponse
         {
@@ -91,7 +90,7 @@ public static class StationsEndpoints
             IsSupermarket = station.IsSupermarket,
             Amenities = station.Amenities,
             Prices = station.Prices.Select(ToResponse).ToList(),
-            DistanceKm = Math.Round(result.DistanceKm, 2),
+            DistanceKm = Math.Round(match.DistanceKm, 2),
         };
     }
 

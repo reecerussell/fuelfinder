@@ -11,22 +11,17 @@ import {
 } from './api'
 import CarPanel from './CarPanel'
 import { fillCost, formatPounds, loadCar, saveCar, type CarSettings } from './car'
+import { readStored, writeStored } from './storage'
 import { RADII, readUrlState, shareUrl, syncUrl, type SortOrder } from './url'
 
-function load<T>(key: string, fallback: T): T {
-  try {
-    const v = localStorage.getItem(key)
-    return v ? (JSON.parse(v) as T) : fallback
-  } catch {
-    return fallback
-  }
+function savedFuel(): FuelType {
+  const stored = readStored('fuel')
+  return FUELS.find((f) => f.id === stored)?.id ?? 'E10'
 }
-function save(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    /* ignore */
-  }
+
+function savedRadius(): number {
+  const stored = readStored('radius')
+  return typeof stored === 'number' && RADII.includes(stored) ? stored : 5
 }
 
 const miles = (km: number) => (km / 1.609).toFixed(1)
@@ -40,18 +35,18 @@ function timeAgo(iso: string | null) {
   return `${Math.round(hours / 24)} days ago`
 }
 
-const initialUrl = readUrlState()
-const sharedPostcode = initialUrl.location && 'postcode' in initialUrl.location ? initialUrl.location.postcode : null
+const shared = readUrlState()
+const sharedPostcode = shared.location && 'postcode' in shared.location ? shared.location.postcode : null
 const sharedCoords: Coords | null =
-  initialUrl.location && 'lat' in initialUrl.location
-    ? { lat: initialUrl.location.lat, lng: initialUrl.location.lng, label: 'the shared location' }
+  shared.location && 'lat' in shared.location
+    ? { lat: shared.location.lat, lng: shared.location.lng, label: 'the shared location' }
     : null
 
 export default function App() {
   // Values from a shared link apply to this visit only; the saved preferences change only when the user picks.
-  const [fuel, setFuel] = useState<FuelType>(() => initialUrl.fuel ?? load('fuel', 'E10'))
-  const [radius, setRadius] = useState<number>(() => initialUrl.radius ?? load('radius', 5))
-  const [sort, setSort] = useState<SortOrder>(initialUrl.sort ?? 'price')
+  const [fuel, setFuel] = useState<FuelType>(() => shared.fuel ?? savedFuel())
+  const [radius, setRadius] = useState<number>(() => shared.radius ?? savedRadius())
+  const [sort, setSort] = useState<SortOrder>(shared.sort ?? 'price')
   const [postcode, setPostcode] = useState(sharedPostcode ?? '')
   const [coords, setCoords] = useState<Coords | null>(sharedCoords)
   const [shareMessage, setShareMessage] = useState<string | null>(null)
@@ -70,15 +65,14 @@ export default function App() {
 
   const chooseFuel = (value: FuelType) => {
     setFuel(value)
-    save('fuel', value)
+    writeStored('fuel', value)
   }
 
   const chooseRadius = (value: number) => {
     setRadius(value)
-    save('radius', value)
+    writeStored('radius', value)
   }
 
-  // Re-run the search whenever the location or filters change.
   useEffect(() => {
     if (!coords) return
     let cancelled = false
@@ -138,7 +132,7 @@ export default function App() {
   }
 
   const cheapest = stations?.length
-    ? Math.min(...stations.map((s) => priceFor(s, fuel) ?? Infinity))
+    ? Math.min(...stations.map((s) => priceOf(s, fuel)?.price ?? Infinity))
     : null
 
   return (
@@ -220,11 +214,7 @@ export default function App() {
 
         {!loading && !error && stations && coords && (
           <div className="summary">
-            <p>
-              {stations.length === 0
-                ? `No stations selling ${fuelLabel(fuel).toLowerCase()} within ${radius} miles of ${coords.label}.`
-                : `${total} station${total === 1 ? '' : 's'} near ${coords.label}${total > stations.length ? ` · showing ${sort === 'price' ? 'cheapest' : 'nearest'} ${stations.length}` : ''}`}
-            </p>
+            <p>{resultsSummary(stations.length, total, coords.label, fuel, radius, sort)}</p>
             <button type="button" className="link" onClick={share}>
               {shareMessage ?? 'Share'}
             </button>
@@ -238,9 +228,10 @@ export default function App() {
         <ul className="list">
           {!loading &&
             stations?.map((s) => {
-              const price = priceFor(s, fuel)
+              const current = priceOf(s, fuel)
+              const price = current?.price ?? null
+              const fill = car && price !== null ? formatPounds(fillCost(car, price)) : null
               const isOpen = openId === s.id
-              const updated = s.prices.find((p) => p.fuelType === fuel)?.updatedAt ?? null
               return (
                 <li key={s.id} className={`card ${isOpen ? 'open' : ''}`}>
                   <button className="card-main" onClick={() => setOpenId(isOpen ? null : s.id)} aria-expanded={isOpen}>
@@ -249,22 +240,22 @@ export default function App() {
                         {price?.toFixed(1)}
                         <small>p</small>
                       </div>
-                      {car && price != null && (
-                        <div className="fill" aria-label={`${formatPounds(fillCost(car, price))} to fill up`}>
-                          {formatPounds(fillCost(car, price))}
+                      {fill && (
+                        <div className="fill" aria-label={`${fill} to fill up`}>
+                          {fill}
                           <small>to fill</small>
                         </div>
                       )}
                     </div>
                     <div className="info">
-                      <strong>{s.brand && !s.name.toLowerCase().includes(s.brand.toLowerCase()) ? `${s.brand} · ` : ''}{s.name}</strong>
+                      <strong>{stationTitle(s)}</strong>
                       <span className="addr">
                         {s.address}
                         {s.postcode ? `, ${s.postcode}` : ''}
                       </span>
                       <span className="meta">
                         {miles(s.distanceKm)} mi
-                        {updated && ` · updated ${timeAgo(updated)}`}
+                        {current?.updatedAt && ` · updated ${timeAgo(current.updatedAt)}`}
                         {s.isMotorway && ' · Motorway'}
                       </span>
                     </div>
@@ -313,6 +304,25 @@ export default function App() {
   )
 }
 
-function priceFor(s: Station, fuel: string) {
-  return s.prices.find((p) => p.fuelType === fuel)?.price ?? null
+function priceOf(station: Station, fuel: FuelType) {
+  return station.prices.find((p) => p.fuelType === fuel)
+}
+
+function stationTitle(station: Station) {
+  const { brand, name } = station
+  return brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${brand} · ${name}` : name
+}
+
+function resultsSummary(
+  shown: number,
+  total: number,
+  place: string,
+  fuel: FuelType,
+  radius: number,
+  sort: SortOrder,
+) {
+  if (shown === 0) return `No stations selling ${fuelLabel(fuel).toLowerCase()} within ${radius} miles of ${place}.`
+
+  const found = `${total} station${total === 1 ? '' : 's'} near ${place}`
+  return total > shown ? `${found} · showing ${sort === 'price' ? 'cheapest' : 'nearest'} ${shown}` : found
 }
