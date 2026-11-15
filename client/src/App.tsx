@@ -9,6 +9,8 @@ import {
   type FuelType,
   type Station,
 } from './api'
+import CarPanel from './CarPanel'
+import { fillCost, formatPounds, loadCar, saveCar, type CarSettings } from './car'
 
 const RADII = [2, 5, 10, 20]
 
@@ -50,9 +52,11 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [car, setCar] = useState<CarSettings | null>(loadCar)
 
   useEffect(() => save('fuel', fuel), [fuel])
   useEffect(() => save('radius', radius), [radius])
+  useEffect(() => saveCar(car), [car])
 
   // Re-run the search whenever the location or filters change.
   useEffect(() => {
@@ -137,6 +141,8 @@ export default function App() {
           ))}
         </div>
 
+        <CarPanel car={car} onChange={setCar} />
+
         <div className="row">
           <label>
             Within
@@ -189,9 +195,17 @@ export default function App() {
               return (
                 <li key={s.id} className={`card ${isOpen ? 'open' : ''}`}>
                   <button className="card-main" onClick={() => setOpenId(isOpen ? null : s.id)} aria-expanded={isOpen}>
-                    <div className={`price ${price === cheapest ? 'best' : ''}`}>
-                      {price?.toFixed(1)}
-                      <small>p</small>
+                    <div className="price-col">
+                      <div className={`price ${price === cheapest ? 'best' : ''}`}>
+                        {price?.toFixed(1)}
+                        <small>p</small>
+                      </div>
+                      {car && price != null && (
+                        <div className="fill" aria-label={`${formatPounds(fillCost(car, price))} to fill up`}>
+                          {formatPounds(fillCost(car, price))}
+                          <small>to fill</small>
+                        </div>
+                      )}
                     </div>
                     <div className="info">
                       <strong>{s.brand && !s.name.toLowerCase().includes(s.brand.toLowerCase()) ? `${s.brand} · ` : ''}{s.name}</strong>
@@ -214,6 +228,7 @@ export default function App() {
                             <tr key={p.fuelType}>
                               <td>{fuelLabel(p.fuelType)}</td>
                               <td className="num">{p.price.toFixed(1)}p</td>
+                              {car && <td className="num">{formatPounds(fillCost(car, p.price))}</td>}
                               <td className="muted">{timeAgo(p.updatedAt)}</td>
                             </tr>
                           ))}

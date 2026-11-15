@@ -139,9 +139,8 @@ button, input, select { font: inherit; color: inherit; }
   text-align: left;
   cursor: pointer;
 }
+.price-col { flex: none; width: 84px; display: grid; gap: 4px; }
 .price {
-  flex: none;
-  width: 76px;
   font-size: 1.5rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -149,7 +148,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .price small { font-size: 0.85rem; margin-left: 1px; }
 .price.best span, .price.best { color: var(--best-text); }
-.price.best { background: var(--best-bg); padding: 2px 4px; width: auto; min-width: 76px; }
+.price.best { background: var(--best-bg); padding: 2px 4px; }
 
 .info { display: grid; gap: 3px; min-width: 0; }
 .info strong { font-size: 1rem; overflow-wrap: anywhere; }
@@ -165,3 +164,47 @@ button, input, select { font: inherit; color: inherit; }
 .actions .btn { flex: 1; }
 
 footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.78rem; }
+
+.fill { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+.fill small { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); }
+
+.car-add { width: 100%; font-weight: 400; border-style: dashed; }
+.car-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  font-size: 0.95rem;
+}
+.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.car-form {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+}
+.field { display: grid; gap: 6px; font-weight: 700; }
+.field .toggle { justify-self: start; }
+.with-unit { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.with-unit input {
+  width: 110px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  font-size: 16px;
+}
+.unit { color: var(--muted); }
+.hint { margin: -4px 0 0; font-size: 0.82rem; color: var(--muted); }
