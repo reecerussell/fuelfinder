@@ -20,7 +20,8 @@ RUN dotnet publish -c Release -o /app --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=server /app ./
-# The aspnet image listens on 8080 and runs as the non-root `app` user.
-USER app
+# The aspnet image listens on 8080. Use the numeric UID of its non-root `app`
+# user so Kubernetes' runAsNonRoot check can verify it.
+USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "FuelFinder.Api.dll"]
