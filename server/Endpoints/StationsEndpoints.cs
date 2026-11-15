@@ -1,4 +1,5 @@
 using FuelFinder.Api.Dtos;
+using FuelFinder.Api.Middleware;
 using FuelFinder.Api.Models;
 using FuelFinder.Api.Services;
 using FuelFinder.Api.Stores;
@@ -16,7 +17,8 @@ public static class StationsEndpoints
     {
         endpoints
             .MapGet("/api/stations", Search)
-            .WithName("SearchStations");
+            .WithName("SearchStations")
+            .RequireRateLimiting(RateLimitPolicies.Search);
 
         return endpoints;
     }

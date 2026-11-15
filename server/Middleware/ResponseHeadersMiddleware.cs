@@ -4,6 +4,18 @@ public sealed class ResponseHeadersMiddleware
 {
     private const string ServerName = "FindFuel";
 
+    private const string ContentSecurityPolicy =
+        "default-src 'self'; " +
+        "script-src 'self'; " +
+        "style-src 'self'; " +
+        "img-src 'self' data:; " +
+        "connect-src 'self' https://api.postcodes.io; " +
+        "manifest-src 'self'; " +
+        "object-src 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'; " +
+        "frame-ancestors 'none'";
+
     private readonly RequestDelegate _next;
 
     public ResponseHeadersMiddleware(RequestDelegate next)
@@ -22,6 +34,8 @@ public sealed class ResponseHeadersMiddleware
         var headers = ((HttpContext)state).Response.Headers;
 
         headers.Server = ServerName;
+        headers.ContentSecurityPolicy = ContentSecurityPolicy;
+        headers.StrictTransportSecurity = "max-age=31536000; includeSubDomains";
         headers.XContentTypeOptions = "nosniff";
         headers.XFrameOptions = "DENY";
         headers["Referrer-Policy"] = "strict-origin-when-cross-origin";

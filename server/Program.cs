@@ -65,6 +65,7 @@ public static class Program
         });
 
         services.AddValidation();
+        services.AddFindFuelRateLimiting();
         services.AddProblemDetails();
     }
 
@@ -84,6 +85,7 @@ public static class Program
         app.UseMiddleware<ResponseHeadersMiddleware>();
         app.UseExceptionHandler();
         app.UseStatusCodePages();
+        app.UseRateLimiter();
         app.UseDefaultFiles();
         app.UseStaticFiles();
         app.MapStationsEndpoints();
