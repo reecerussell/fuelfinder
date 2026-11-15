@@ -1,10 +1,11 @@
 export type FuelType = 'E10' | 'E5' | 'B7_STANDARD' | 'B7_PREMIUM'
 
-export const FUELS: { id: FuelType; label: string }[] = [
-  { id: 'E10', label: 'Unleaded' },
-  { id: 'E5', label: 'Super unleaded' },
-  { id: 'B7_STANDARD', label: 'Diesel' },
-  { id: 'B7_PREMIUM', label: 'Premium diesel' },
+/** `slug` is the readable name used in shareable URLs, e.g. `?fuel=diesel`. */
+export const FUELS: { id: FuelType; label: string; slug: string }[] = [
+  { id: 'E10', label: 'Unleaded', slug: 'unleaded' },
+  { id: 'E5', label: 'Super unleaded', slug: 'super-unleaded' },
+  { id: 'B7_STANDARD', label: 'Diesel', slug: 'diesel' },
+  { id: 'B7_PREMIUM', label: 'Premium diesel', slug: 'premium-diesel' },
 ]
 
 export const fuelLabel = (id: string) =>
@@ -42,6 +43,8 @@ export interface Coords {
   lat: number
   lng: number
   label: string
+  /** Set when the location came from a postcode search, so it can be shared as a postcode. */
+  postcode?: string
 }
 
 export async function searchStations(
@@ -70,13 +73,14 @@ export async function lookupPostcode(input: string): Promise<Coords> {
     const res = await fetch(url)
     if (!res.ok) return null
     const body = await res.json()
-    return body.result as { latitude: number; longitude: number } | null
+    return body.result as { latitude: number; longitude: number; postcode?: string; outcode?: string } | null
   }
   const result =
     (await tryUrl(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`)) ??
     (await tryUrl(`https://api.postcodes.io/outcodes/${encodeURIComponent(pc)}`))
   if (!result?.latitude) throw new Error(`Couldn't find postcode "${input.trim()}".`)
-  return { lat: result.latitude, lng: result.longitude, label: pc }
+  const formatted = result.postcode ?? result.outcode ?? pc
+  return { lat: result.latitude, lng: result.longitude, label: formatted, postcode: formatted }
 }
 
 export function getCurrentLocation(): Promise<Coords> {

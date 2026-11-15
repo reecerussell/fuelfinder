@@ -11,8 +11,7 @@ import {
 } from './api'
 import CarPanel from './CarPanel'
 import { fillCost, formatPounds, loadCar, saveCar, type CarSettings } from './car'
-
-const RADII = [2, 5, 10, 20]
+import { RADII, readUrlState, shareUrl, syncUrl, type SortOrder } from './url'
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -41,12 +40,21 @@ function timeAgo(iso: string | null) {
   return `${Math.round(hours / 24)} days ago`
 }
 
+const initialUrl = readUrlState()
+const sharedPostcode = initialUrl.location && 'postcode' in initialUrl.location ? initialUrl.location.postcode : null
+const sharedCoords: Coords | null =
+  initialUrl.location && 'lat' in initialUrl.location
+    ? { lat: initialUrl.location.lat, lng: initialUrl.location.lng, label: 'the shared location' }
+    : null
+
 export default function App() {
-  const [fuel, setFuel] = useState<FuelType>(() => load('fuel', 'E10'))
-  const [radius, setRadius] = useState<number>(() => load('radius', 5))
-  const [sort, setSort] = useState<'price' | 'distance'>('price')
-  const [postcode, setPostcode] = useState('')
-  const [coords, setCoords] = useState<Coords | null>(null)
+  // Values from a shared link apply to this visit only; the saved preferences change only when the user picks.
+  const [fuel, setFuel] = useState<FuelType>(() => initialUrl.fuel ?? load('fuel', 'E10'))
+  const [radius, setRadius] = useState<number>(() => initialUrl.radius ?? load('radius', 5))
+  const [sort, setSort] = useState<SortOrder>(initialUrl.sort ?? 'price')
+  const [postcode, setPostcode] = useState(sharedPostcode ?? '')
+  const [coords, setCoords] = useState<Coords | null>(sharedCoords)
+  const [shareMessage, setShareMessage] = useState<string | null>(null)
   const [stations, setStations] = useState<Station[] | null>(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -54,9 +62,21 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [car, setCar] = useState<CarSettings | null>(loadCar)
 
-  useEffect(() => save('fuel', fuel), [fuel])
-  useEffect(() => save('radius', radius), [radius])
   useEffect(() => saveCar(car), [car])
+
+  useEffect(() => {
+    if (coords) syncUrl({ coords, fuel, radius, sort })
+  }, [coords, fuel, radius, sort])
+
+  const chooseFuel = (value: FuelType) => {
+    setFuel(value)
+    save('fuel', value)
+  }
+
+  const chooseRadius = (value: number) => {
+    setRadius(value)
+    save('radius', value)
+  }
 
   // Re-run the search whenever the location or filters change.
   useEffect(() => {
@@ -91,6 +111,30 @@ export default function App() {
   const onPostcode = (e: FormEvent) => {
     e.preventDefault()
     if (postcode.trim()) locate(() => lookupPostcode(postcode))
+  }
+
+  useEffect(() => {
+    if (sharedPostcode) locate(() => lookupPostcode(sharedPostcode))
+    // Only on first load, for links shared with a postcode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const share = async () => {
+    if (!coords) return
+    const url = shareUrl({ coords, fuel, radius, sort })
+    const title = `${fuelLabel(fuel)} prices near ${coords.postcode ?? 'here'} – Fuel Finder`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url })
+        return
+      }
+      await navigator.clipboard.writeText(url)
+      setShareMessage('Link copied')
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return
+      setShareMessage('Couldn’t share – copy the address bar instead')
+    }
+    window.setTimeout(() => setShareMessage(null), 2500)
   }
 
   const cheapest = stations?.length
@@ -134,7 +178,7 @@ export default function App() {
               role="radio"
               aria-checked={fuel === f.id}
               className={`chip ${fuel === f.id ? 'on' : ''}`}
-              onClick={() => setFuel(f.id)}
+              onClick={() => chooseFuel(f.id)}
             >
               {f.label}
             </button>
@@ -146,7 +190,7 @@ export default function App() {
         <div className="row">
           <label>
             Within
-            <select value={radius} onChange={(e) => setRadius(Number(e.target.value))}>
+            <select value={radius} onChange={(e) => chooseRadius(Number(e.target.value))}>
               {RADII.map((r) => (
                 <option key={r} value={r}>
                   {r} miles
@@ -175,11 +219,16 @@ export default function App() {
         {loading && <div className="notice">Finding stations…</div>}
 
         {!loading && !error && stations && coords && (
-          <p className="summary">
-            {stations.length === 0
-              ? `No stations selling ${fuelLabel(fuel).toLowerCase()} within ${radius} miles of ${coords.label}.`
-              : `${total} station${total === 1 ? '' : 's'} near ${coords.label}${total > stations.length ? ` · showing ${sort === 'price' ? 'cheapest' : 'nearest'} ${stations.length}` : ''}`}
-          </p>
+          <div className="summary">
+            <p>
+              {stations.length === 0
+                ? `No stations selling ${fuelLabel(fuel).toLowerCase()} within ${radius} miles of ${coords.label}.`
+                : `${total} station${total === 1 ? '' : 's'} near ${coords.label}${total > stations.length ? ` · showing ${sort === 'price' ? 'cheapest' : 'nearest'} ${stations.length}` : ''}`}
+            </p>
+            <button type="button" className="link" onClick={share}>
+              {shareMessage ?? 'Share'}
+            </button>
+          </div>
         )}
 
         {!coords && !loading && !error && (

@@ -121,7 +121,9 @@ button, input, select { font: inherit; color: inherit; }
 .notice { padding: 12px 0; color: var(--muted); }
 .notice.error { color: var(--error); font-weight: 700; border-left: 4px solid var(--error); padding-left: 12px; }
 
-.summary { margin: 0 0 10px; font-size: 0.9rem; color: var(--muted); }
+.summary { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 10px; font-size: 0.9rem; color: var(--muted); }
+.summary p { margin: 0; }
+.summary .link { flex: none; font-size: 0.9rem; }
 
 .list { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--accent); }
 .list:empty { display: none; }
