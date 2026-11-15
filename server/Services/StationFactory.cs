@@ -9,7 +9,7 @@ public static class StationFactory
     private const decimal MinimumPlausiblePrice = 80m;
     private const decimal MaximumPlausiblePrice = 400m;
 
-    private static readonly TextInfo TextInfo = CultureInfo.GetCultureInfo("en-GB").TextInfo;
+    private static readonly TextInfo TextInfo = CultureInfo.InvariantCulture.TextInfo;
 
     public static Station? Create(FuelFinderStationDto station, IReadOnlyList<FuelFinderFuelPriceDto> prices)
     {
