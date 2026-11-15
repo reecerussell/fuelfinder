@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using FuelFinder.Api.Models;
 
 namespace FuelFinder.Api.Dtos;
 
@@ -17,5 +16,5 @@ public sealed class StationSearchRequest
 
     public string? Fuel { get; init; }
 
-    public StationSortOrder Sort { get; init; } = StationSortOrder.Price;
+    public string? Sort { get; init; }
 }

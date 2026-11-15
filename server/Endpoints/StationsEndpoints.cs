@@ -2,36 +2,41 @@ using FuelFinder.Api.Dtos;
 using FuelFinder.Api.Models;
 using FuelFinder.Api.Services;
 using FuelFinder.Api.Stores;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.HttpResults;
 
-namespace FuelFinder.Api.Controllers;
+namespace FuelFinder.Api.Endpoints;
 
-[ApiController]
-[Route("api/stations")]
-public sealed class StationsController : ControllerBase
+public static class StationsEndpoints
 {
     private const double DefaultRadiusKm = 8;
     private const double MinimumRadiusKm = 1;
     private const double MaximumRadiusKm = 50;
 
-    private readonly IStationSearchService _searchService;
-    private readonly IFuelDataStore _store;
-
-    public StationsController(IStationSearchService searchService, IFuelDataStore store)
+    public static IEndpointRouteBuilder MapStationsEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        _searchService = searchService;
-        _store = store;
+        endpoints
+            .MapGet("/api/stations", Search)
+            .WithName("SearchStations");
+
+        return endpoints;
     }
 
-    [HttpGet]
-    [ProducesResponseType<StationSearchResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public ActionResult<StationSearchResponse> Search([FromQuery] StationSearchRequest request)
+    private static Results<Ok<StationSearchResponse>, ValidationProblem, ProblemHttpResult> Search(
+        [AsParameters] StationSearchRequest request,
+        IStationSearchService searchService,
+        IFuelDataStore store)
     {
-        if (!_store.IsLoaded)
+        if (!TryParseSort(request.Sort, out var sort))
         {
-            return Problem(
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                [nameof(request.Sort)] = [$"Sort must be one of: {string.Join(", ", Enum.GetNames<StationSortOrder>())}."],
+            });
+        }
+
+        if (!store.IsLoaded)
+        {
+            return TypedResults.Problem(
                 detail: "Fuel data is still loading, try again in a moment.",
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         }
@@ -42,17 +47,28 @@ public sealed class StationsController : ControllerBase
             Longitude = request.Lng!.Value,
             RadiusKm = Math.Clamp(request.RadiusKm ?? DefaultRadiusKm, MinimumRadiusKm, MaximumRadiusKm),
             FuelType = string.IsNullOrWhiteSpace(request.Fuel) ? null : request.Fuel.ToUpperInvariant(),
-            Sort = request.Sort,
+            Sort = sort,
         };
 
-        var results = _searchService.Search(criteria);
+        var results = searchService.Search(criteria);
 
-        return new StationSearchResponse
+        return TypedResults.Ok(new StationSearchResponse
         {
-            LastUpdated = _store.LastUpdated,
+            LastUpdated = store.LastUpdated,
             Total = results.Total,
             Results = results.Results.Select(ToResponse).ToList(),
-        };
+        });
+    }
+
+    private static bool TryParseSort(string? value, out StationSortOrder sort)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            sort = StationSortOrder.Price;
+            return true;
+        }
+
+        return Enum.TryParse(value, ignoreCase: true, out sort) && Enum.IsDefined(sort);
     }
 
     private static StationResponse ToResponse(StationSearchResult result)

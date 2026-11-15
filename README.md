@@ -3,7 +3,7 @@
 A mobile-first site that shows live UK fuel prices near you, using the GOV.UK
 [Fuel Finder API](https://www.developer.fuel-finder.service.gov.uk/).
 
-- **server/**: ASP.NET Core (.NET 11) Web API with controllers
+- **server/**: ASP.NET Core (.NET 11) minimal API endpoints, published with Native AOT and runtime async
 - **client/**: React + TypeScript (Vite)
 
 ## How it works
@@ -47,6 +47,11 @@ cd ../server && dotnet publish -c Release -o ../publish
 ```
 
 The published .NET app serves both the API and the React site.
+
+The Docker image compiles the server with Native AOT and runs it on
+`runtime-deps:11.0-resolute-chiseled` (Ubuntu, distroless, no .NET runtime). It is about 50 MB.
+JSON uses source generation (`Serialization/AppJsonSerializerContext.cs`), so any new
+request or response type has to be registered there.
 
 ## API
 

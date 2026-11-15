@@ -6,19 +6,19 @@ COPY client/ ./
 # vite.config.ts writes the build to ../server/wwwroot
 RUN npm run build
 
-FROM mcr.microsoft.com/dotnet/sdk:11.0 AS server
+FROM mcr.microsoft.com/dotnet/sdk:11.0-resolute-aot AS server
 WORKDIR /src/server
 COPY server/FuelFinder.Api.csproj ./
-RUN dotnet restore
+RUN dotnet restore -r linux-x64
 COPY server/ ./
 COPY --from=client /src/server/wwwroot ./wwwroot
-RUN dotnet publish -c Release -o /app --no-restore
+RUN dotnet publish -c Release -r linux-x64 -o /app --no-restore \
+    && rm -f /app/*.dbg /app/appsettings.Development.json
 
-# Ubuntu chiseled (distroless) with the ASP.NET framework precompiled as a composite image.
-# Native AOT isn't an option because MVC controllers aren't AOT-compatible.
-FROM mcr.microsoft.com/dotnet/aspnet:11.0-resolute-chiseled-composite
+# Native AOT binary on Ubuntu chiseled (distroless), with no .NET runtime in the image.
+FROM mcr.microsoft.com/dotnet/runtime-deps:11.0-resolute-chiseled
 WORKDIR /app
 COPY --from=server /app ./
 USER $APP_UID
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "FuelFinder.Api.dll"]
+ENTRYPOINT ["./FuelFinder.Api"]

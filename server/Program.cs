@@ -1,4 +1,7 @@
+using FuelFinder.Api.Endpoints;
+using FuelFinder.Api.Middleware;
 using FuelFinder.Api.Options;
+using FuelFinder.Api.Serialization;
 using FuelFinder.Api.Services;
 using FuelFinder.Api.Stores;
 using Microsoft.Extensions.Options;
@@ -11,7 +14,9 @@ public static class Program
 
     public static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateSlimBuilder(args);
+
+        builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
         ConfigureServices(builder.Services, builder.Configuration);
 
@@ -54,7 +59,12 @@ public static class Program
                 options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
             });
 
-        services.AddControllers();
+        services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
+        });
+
+        services.AddValidation();
         services.AddProblemDetails();
     }
 
@@ -71,9 +81,14 @@ public static class Program
 
     private static void ConfigurePipeline(WebApplication app)
     {
+        app.UseMiddleware<ResponseHeadersMiddleware>();
+        app.UseExceptionHandler();
+        app.UseStatusCodePages();
         app.UseDefaultFiles();
         app.UseStaticFiles();
-        app.MapControllers();
+        app.MapStationsEndpoints();
+        app.MapStatusEndpoints();
+        app.MapHealthEndpoints();
         app.MapFallbackToFile("index.html");
     }
 }
